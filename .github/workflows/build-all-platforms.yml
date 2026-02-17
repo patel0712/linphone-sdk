@@ -1,0 +1,210 @@
+name: Build Linphone SDK for All Platforms
+
+on:
+  push:
+    branches: [custom-desktop-builds]
+    tags: ['v*']
+  pull_request:
+    branches: [custom-desktop-builds]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (Release/Debug)'
+        required: false
+        default: 'Release'
+
+env:
+  SDK_VERSION: 5.4.86-custom
+
+jobs:
+  build-macos:
+    name: Build macOS SDK
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja yasm nasm
+          
+      - name: Apply patches
+        run: |
+          if [ -f patches/cross-platform-vfs-export.patch ]; then
+            git apply patches/cross-platform-vfs-export.patch || echo "Patch already applied"
+          fi
+          
+      - name: Build macOS SDK
+        run: |
+          chmod +x build-scripts/build-macos.sh
+          ./build-scripts/build-macos.sh
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'Release' }}
+          
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linphone-sdk-macos-${{ env.SDK_VERSION }}
+          path: dist/macos/
+          retention-days: 30
+          
+      - name: Create release archive
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd dist
+          tar -czf linphone-sdk-macos-${{ env.SDK_VERSION }}.tar.gz macos/
+          
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/linphone-sdk-macos-${{ env.SDK_VERSION }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: Build Linux SDK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build \
+            yasm nasm git autoconf automake libtool pkg-config \
+            libpulse-dev libspeex-dev libspeexdsp-dev \
+            libglew-dev libv4l-dev libxml2-dev libsqlite3-dev
+          
+      - name: Apply patches
+        run: |
+          if [ -f patches/cross-platform-vfs-export.patch ]; then
+            git apply patches/cross-platform-vfs-export.patch || echo "Patch already applied"
+          fi
+          
+      - name: Build Linux SDK
+        run: |
+          chmod +x build-scripts/build-linux.sh
+          ./build-scripts/build-linux.sh
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'Release' }}
+          
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linphone-sdk-linux-${{ env.SDK_VERSION }}
+          path: dist/linux/
+          retention-days: 30
+          
+      - name: Create release archive
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd dist
+          tar -czf linphone-sdk-linux-${{ env.SDK_VERSION }}.tar.gz linux/
+          
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/linphone-sdk-linux-${{ env.SDK_VERSION }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    name: Build Windows SDK
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Set up MSVC
+        uses: microsoft/setup-msbuild@v1
+        
+      - name: Apply patches
+        shell: bash
+        run: |
+          if [ -f patches/cross-platform-vfs-export.patch ]; then
+            git apply patches/cross-platform-vfs-export.patch || echo "Patch already applied"
+          fi
+          
+      - name: Build Windows SDK
+        shell: powershell
+        run: |
+          .\build-scripts\build-windows.ps1
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'Release' }}
+          
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linphone-sdk-windows-${{ env.SDK_VERSION }}
+          path: dist/windows/
+          retention-days: 30
+          
+      - name: Create release archive
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: powershell
+        run: |
+          cd dist
+          Compress-Archive -Path windows -DestinationPath linphone-sdk-windows-${{ env.SDK_VERSION }}.zip
+          
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/linphone-sdk-windows-${{ env.SDK_VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  validation:
+    name: Validate All Builds
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        
+      - name: List all builds
+        run: |
+          echo "=== Build Artifacts ===" tree -L 2 || find . -type f -name "*.so" -o -name "*.dll" -o -name "*.dylib"
+          
+      - name: Generate build report
+        run: |
+          echo "# Linphone SDK Build Report" > build-report.md
+          echo "Version: ${{ env.SDK_VERSION }}" >> build-report.md
+          echo "Date: $(date)" >> build-report.md
+          echo "" >> build-report.md
+          echo "## Artifacts" >> build-report.md
+          du -sh linphone-sdk-*/ >> build-report.md
+          
+      - name: Upload build report
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report
+          path: build-report.md

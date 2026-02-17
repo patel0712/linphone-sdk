@@ -1,0 +1,25 @@
+diff --git a/bctoolbox/src/vfs/sqlite3_bctbx_vfs.c b/bctoolbox/src/vfs/sqlite3_bctbx_vfs.c
+index 1234567..abcdefg 100644
+--- a/bctoolbox/src/vfs/sqlite3_bctbx_vfs.c
++++ b/bctoolbox/src/vfs/sqlite3_bctbx_vfs.c
+@@ -1,5 +1,12 @@
+ /* VFS implementation */
+ 
++/* Export VFS registration function for all desktop platforms */
++#ifdef _WIN32
++#define VFS_EXPORT __declspec(dllexport)
++#elif defined(__APPLE__) || defined(__linux__)
++#define VFS_EXPORT __attribute__((visibility("default")))
++#endif
++
+ /**
+  * Register the custom VFS.
+  * @param make_default If non-zero, make this VFS the default.
+@@ -7,6 +14,7 @@
+  */
++#ifdef VFS_EXPORT
++VFS_EXPORT
++#endif
+ int sqlite3_bctbx_vfs_register(int make_default) {
+     return sqlite3_vfs_register(&bctbx_vfs, make_default);
+ }
