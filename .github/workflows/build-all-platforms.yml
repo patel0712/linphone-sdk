@@ -27,8 +27,14 @@ jobs:
         with:
           submodules: false
           
+      - name: Fix submodule URLs
+        run: |
+          # Update relative URLs to absolute URLs pointing to official repos
+          sed -i '' 's|url = \\.\\./|url = https://github.com/BelledonneCommunications/|g' .gitmodules
+          
       - name: Initialize submodules
         run: |
+          git submodule sync
           git submodule update --init --recursive
           
       - name: Set up Python
@@ -84,8 +90,14 @@ jobs:
         with:
           submodules: false
           
+      - name: Fix submodule URLs
+        run: |
+          # Update relative URLs to absolute URLs pointing to official repos
+          sed -i 's|url = \.\./|url = https://github.com/BelledonneCommunications/|g' .gitmodules
+          
       - name: Initialize submodules
         run: |
+          git submodule sync
           git submodule update --init --recursive
           
       - name: Set up Python
@@ -145,8 +157,15 @@ jobs:
         with:
           submodules: false
           
+      - name: Fix submodule URLs
+        shell: bash
+        run: |
+          # Update relative URLs to absolute URLs pointing to official repos
+          sed -i 's|url = \.\./|url = https://github.com/BelledonneCommunications/|g' .gitmodules
+          
       - name: Initialize submodules
         run: |
+          git submodule sync
           git submodule update --init --recursive
           
       - name: Set up Python
