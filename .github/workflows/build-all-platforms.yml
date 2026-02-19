@@ -30,7 +30,10 @@ jobs:
       - name: Initialize submodules
         run: |
           git submodule sync
-          git submodule update --init --recursive
+          # Initialize submodules, continue even if some fail (e.g., GitLab connectivity issues)
+          git submodule update --init --recursive || true
+          # Retry failed submodules
+          git submodule update --init --recursive || echo "Some optional submodules failed to clone"
           
       - name: Apply patches
         run: |
@@ -88,7 +91,10 @@ jobs:
       - name: Initialize submodules
         run: |
           git submodule sync
-          git submodule update --init --recursive
+          # Initialize submodules, continue even if some fail (e.g., GitLab connectivity issues)
+          git submodule update --init --recursive || true
+          # Retry failed submodules
+          git submodule update --init --recursive || echo "Some optional submodules failed to clone"
           
       - name: Apply patches
         run: |
@@ -150,7 +156,10 @@ jobs:
       - name: Initialize submodules
         run: |
           git submodule sync
-          git submodule update --init --recursive
+          # Initialize submodules, continue even if some fail (e.g., GitLab connectivity issues)
+          git submodule update --init --recursive || true
+          # Retry failed submodules
+          git submodule update --init --recursive || echo "Some optional submodules failed to clone"
           
       - name: Apply patches
         shell: bash
